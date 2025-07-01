@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>أخبار almanadger - دليلك للأحداث الجارية</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Noto+Naskh+Arabic:wght@400;700&display=swap" rel="stylesheet">
+    
     <style>
         /* المتغيرات (Variables) لسهولة إدارة الألوان والتباعد */
         :root {
@@ -300,14 +301,14 @@
             // دالة مساعدة لتنسيق التاريخ
             const formatArticleDate = (dateString) => {
                 try {
-                    const publishedDate = new Date(dateString); // تم تصحيح اسم المتغير
+                    const publishedDate = new Date(dateString);
                     if (isNaN(publishedDate.getTime())) {
                         throw new Error("تاريخ غير صالح");
                     }
-                    const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }; // تم تصحيح أسماء الخيارات
+                    const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
                     return publishedDate.toLocaleDateString('ar-EG', options);
                 } catch (e) {
-                    console.warn(`تحذير: لا يمكن تنسيق التاريخ "${dateString}". الخطأ: ${e.message}`); // تم تصحيح "الرد" إلى "الخطأ"
+                    console.warn(`تحذير: لا يمكن تنسيق التاريخ "${dateString}". الخطأ: ${e.message}`);
                     return 'تاريخ غير متوفر';
                 }
             };
@@ -315,7 +316,7 @@
             // دالة لإنشاء بطاقة المقال
             const createArticleCard = (article) => {
                 const articleCard = document.createElement('div');
-                articleCard.classList.add('article-card'); // تم تصحيح اسم الكلاس
+                articleCard.classList.add('article-card');
 
                 const formattedDate = formatArticleDate(article.published);
 
@@ -327,7 +328,7 @@
                         <span class="date">${formattedDate}</span>
                     </div>
                     <a href="${article.link}" class="read-more" target="_blank" rel="noopener noreferrer">قراءة المزيد &raquo;</a>
-                `; // تم تصحيح HTML المضمن وعلامات الاقتباس
+                `;
                 return articleCard;
             };
 
@@ -336,11 +337,12 @@
                 articlesContainer.innerHTML = '<p class="loading">جاري تحميل الأخبار... يرجى الانتظار.</p>'; // عرض رسالة التحميل
 
                 try {
-                    const response = await fetch('articles.json?' + new Date().getTime()); // تم تصحيح await و response
+                    // إضافة timestamp لتجنب التخزين المؤقت (caching)
+                    const response = await fetch('articles.json?' + new Date().getTime()); 
                     if (!response.ok) {
                         throw new Error(`فشل تحميل ملف الأخبار: ${response.status} ${response.statusText}. تأكد من أن ملف articles.json موجود ويمكن الوصول إليه.`);
                     }
-                    const articles = await response.json(); // تم تصحيح await و articles
+                    const articles = await response.json();
 
                     articlesContainer.innerHTML = ''; // مسح رسالة التحميل
 
@@ -353,7 +355,7 @@
                         articlesContainer.appendChild(createArticleCard(article));
                     });
 
-                } catch (error) { // تم تصحيح catch
+                } catch (error) {
                     console.error('حدث خطأ أثناء جلب الأخبار:', error);
                     articlesContainer.innerHTML = `<p style="color: red; text-align: center;">عذرًا، حدث خطأ أثناء تحميل الأخبار: ${error.message}<br>يرجى التأكد من تشغيل ملف run_news.bat وأن ملف articles.json موجود.</p>`;
                 }
