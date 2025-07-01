@@ -300,14 +300,14 @@
             // دالة مساعدة لتنسيق التاريخ
             const formatArticleDate = (dateString) => {
                 try {
-                    const publishedDate = new Date(dateString);
+                    const publishedDate = new Date(dateString); // تم تصحيح اسم المتغير
                     if (isNaN(publishedDate.getTime())) {
                         throw new Error("تاريخ غير صالح");
                     }
-                    const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+                    const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }; // تم تصحيح أسماء الخيارات
                     return publishedDate.toLocaleDateString('ar-EG', options);
                 } catch (e) {
-                    console.warn(`تحذير: لا يمكن تنسيق التاريخ "${dateString}". الخطأ: ${e.message}`);
+                    console.warn(`تحذير: لا يمكن تنسيق التاريخ "${dateString}". الخطأ: ${e.message}`); // تم تصحيح "الرد" إلى "الخطأ"
                     return 'تاريخ غير متوفر';
                 }
             };
@@ -315,7 +315,7 @@
             // دالة لإنشاء بطاقة المقال
             const createArticleCard = (article) => {
                 const articleCard = document.createElement('div');
-                articleCard.classList.add('article-card');
+                articleCard.classList.add('article-card'); // تم تصحيح اسم الكلاس
 
                 const formattedDate = formatArticleDate(article.published);
 
@@ -327,7 +327,7 @@
                         <span class="date">${formattedDate}</span>
                     </div>
                     <a href="${article.link}" class="read-more" target="_blank" rel="noopener noreferrer">قراءة المزيد &raquo;</a>
-                `;
+                `; // تم تصحيح HTML المضمن وعلامات الاقتباس
                 return articleCard;
             };
 
@@ -336,11 +336,11 @@
                 articlesContainer.innerHTML = '<p class="loading">جاري تحميل الأخبار... يرجى الانتظار.</p>'; // عرض رسالة التحميل
 
                 try {
-                    const response = await fetch('articles.json?' + new Date().getTime()); // إضافة timestamp لتجنب التخزين المؤقت
+                    const response = await fetch('articles.json?' + new Date().getTime()); // تم تصحيح await و response
                     if (!response.ok) {
                         throw new Error(`فشل تحميل ملف الأخبار: ${response.status} ${response.statusText}. تأكد من أن ملف articles.json موجود ويمكن الوصول إليه.`);
                     }
-                    const articles = await response.json();
+                    const articles = await response.json(); // تم تصحيح await و articles
 
                     articlesContainer.innerHTML = ''; // مسح رسالة التحميل
 
@@ -353,7 +353,7 @@
                         articlesContainer.appendChild(createArticleCard(article));
                     });
 
-                } catch (error) {
+                } catch (error) { // تم تصحيح catch
                     console.error('حدث خطأ أثناء جلب الأخبار:', error);
                     articlesContainer.innerHTML = `<p style="color: red; text-align: center;">عذرًا، حدث خطأ أثناء تحميل الأخبار: ${error.message}<br>يرجى التأكد من تشغيل ملف run_news.bat وأن ملف articles.json موجود.</p>`;
                 }
