@@ -1,77 +1,375 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const articlesContainer = document.getElementById('articles-container');
-    const refreshButton = document.querySelector('.refresh-button');
-
-    // دالة مساعدة لتنسيق التاريخ
-    const formatArticleDate = (dateString) => {
-        try {
-            const publishedDate = new Date(dateString);
-            if (isNaN(publishedDate.getTime())) {
-                throw new Error("تاريخ غير صالح");
-            }
-            const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-            return publishedDate.toLocaleDateString('ar-EG', options);
-        } catch (e) {
-            console.warn(`تحذير: لا يمكن تنسيق التاريخ "${dateString}". الخطأ: ${e.message}`);
-            return 'تاريخ غير متوفر';
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>أخبار almanadger - دليلك للأحداث الجارية</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Noto+Naskh+Arabic:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* المتغيرات (Variables) لسهولة إدارة الألوان والتباعد */
+        :root {
+            --primary-color: #007bff; /* أزرق أساسي */
+            --primary-hover-color: #0056b3; /* أزرق داكن عند التحويم */
+            --accent-color: #28a745; /* أخضر للروابط */
+            --accent-hover-color: #218838; /* أخضر داكن عند التحويم */
+            --background-light: #f4f7f6; /* خلفية فاتحة جدًا */
+            --text-dark: #2c3e50; /* نص داكن للعناوين */
+            --text-medium: #5a6268; /* نص متوسط للفقرات */
+            --text-light: #868e96; /* نص فاتح للميتا داتا */
+            --border-color: #e9ecef; /* لون الحدود الفاتح */
+            --card-background: #ffffff; /* خلفية البطاقة */
+            --shadow-light: rgba(0,0,0,0.08); /* ظل خفيف */
+            --shadow-medium: rgba(0,0,0,0.12); /* ظل متوسط */
+            --border-radius: 10px;
+            --spacing-unit: 1rem; /* وحدة تباعد أساسية (16px) */
         }
-    };
 
-    // دالة لإنشاء بطاقة المقال
-    const createArticleCard = (article) => {
-        const articleCard = document.createElement('div');
-        articleCard.classList.add('article-card');
-
-        const formattedDate = formatArticleDate(article.published);
-
-        articleCard.innerHTML = `
-            <h2><a href="${article.link}" target="_blank" rel="noopener noreferrer">${article.title}</a></h2>
-            <p>${article.summary}</p>
-            <div class="meta">
-                <span class="source">المصدر: ${article.source}</span>
-                <span class="date">${formattedDate}</span>
-            </div>
-            <a href="${article.link}" target="_blank" rel="noopener noreferrer">قراءة المزيد &raquo;</a>
-        `;
-        return articleCard;
-    };
-
-    // دالة لجلب وعرض المقالات
-    const fetchAndDisplayArticles = async () => {
-        articlesContainer.innerHTML = '<p class="loading">جاري تحميل الأخبار... يرجى الانتظار.</p>'; // عرض رسالة التحميل
-
-        try {
-            const response = await fetch('articles.json?' + new Date().getTime()); // إضافة timestamp لتجنب التخزين المؤقت
-            if (!response.ok) {
-                throw new Error(`فشل تحميل ملف الأخبار: ${response.status} ${response.statusText}. تأكد من أن ملف articles.json موجود ويمكن الوصول إليه.`);
-            }
-            const articles = await response.json();
-
-            articlesContainer.innerHTML = ''; // مسح رسالة التحميل
-
-            if (articles.length === 0) {
-                articlesContainer.innerHTML = '<p style="text-align: center; color: #6c757d;">لا توجد مقالات لعرضها حاليًا.</p>';
-                return;
-            }
-
-            articles.forEach(article => {
-                articlesContainer.appendChild(createArticleCard(article));
-            });
-
-        } catch (error) {
-            console.error('حدث خطأ أثناء جلب الأخبار:', error);
-            articlesContainer.innerHTML = `<p style="color: red; text-align: center;">عذرًا، حدث خطأ أثناء تحميل الأخبار: ${error.message}<br>يرجى التأكد من تشغيل ملف run_news.bat وأن ملف articles.json موجود.</p>`;
+        body {
+            font-family: 'Cairo', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: calc(2 * var(--spacing-unit)); /* 32px */
+            background-color: var(--background-light);
+            color: var(--text-medium);
+            line-height: 1.7; /* زيادة تباعد الأسطر لتحسين القراءة */
+            direction: rtl;
+            text-align: right;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
-    };
 
-    // جلب الأخبار عند تحميل الصفحة لأول مرة
-    fetchAndDisplayArticles();
+        .container {
+            max-width: 1200px;
+            margin: calc(2 * var(--spacing-unit)) auto; /* 32px auto */
+            background-color: var(--card-background);
+            padding: calc(3 * var(--spacing-unit)); /* 48px */
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 30px var(--shadow-light); /* ظل أكبر وأكثر نعومة */
+            position: relative;
+        }
 
-    // إضافة مستمع حدث لزر التحديث بدلاً من onclick المباشر في HTML
-    if (refreshButton) {
-        refreshButton.addEventListener('click', fetchAndDisplayArticles);
-    }
+        h1 {
+            font-family: 'Noto Naskh Arabic', 'Cairo', serif; /* خط مختلف للعناوين لتميزها */
+            color: var(--text-dark);
+            text-align: center;
+            margin-bottom: calc(2 * var(--spacing-unit)); /* 32px */
+            padding-bottom: var(--spacing-unit); /* 16px */
+            border-bottom: 2px solid var(--border-color);
+            font-size: 3em; /* تكبير العنوان الرئيسي */
+            font-weight: 700;
+            position: relative; /* لتأثير تحتي بسيط */
+            display: inline-block; /* ليناسب الخط تحت النص */
+            width: 100%; /* لكي يظل في المنتصف */
+        }
+        h1::after {
+            content: '';
+            display: block;
+            width: 80px; /* خط أصغر تحت العنوان */
+            height: 4px;
+            background-color: var(--primary-color);
+            margin: 10px auto 0;
+            border-radius: 2px;
+        }
 
-    // يمكنك إضافة تحديث تلقائي هنا إذا أردت، مثلاً كل 5 دقائق
-    // setInterval(fetchAndDisplayArticles, 300000); // 300000 مللي ثانية = 5 دقائق
-});
+        .refresh-button {
+            position: absolute;
+            top: 25px; /* رفع الزر قليلاً */
+            left: 25px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 20px; /* تكبير حجم الزر */
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+            z-index: 10;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); /* إضافة ظل للزر */
+        }
+        .refresh-button:hover {
+            background-color: var(--primary-hover-color);
+            transform: translateY(-3px); /* تأثير رفع أكبر */
+            box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+        }
+
+        .article-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* ضبط minmax للمرونة */
+            gap: calc(2.5 * var(--spacing-unit)); /* زيادة التباعد بين البطاقات */
+        }
+
+        .article-card {
+            background-color: var(--card-background);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: calc(2 * var(--spacing-unit)); /* 32px */
+            box-shadow: 0 6px 20px var(--shadow-light); /* ظل أكثر وضوحًا */
+            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden;
+            position: relative; /* لإضافة بعض الزخارف */
+        }
+        .article-card::before { /* تأثير شريط علوي ملون */
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            background-color: var(--primary-color);
+            border-top-left-radius: var(--border-radius);
+            border-top-right-radius: var(--border-radius);
+        }
+
+        .article-card:hover {
+            transform: translateY(-10px); /* رفع أكبر عند التحويم */
+            box-shadow: 0 15px 35px var(--shadow-medium); /* ظل أكبر وأعمق */
+        }
+
+        .article-card h2 {
+            margin-top: calc(0.5 * var(--spacing-unit)); /* تباعد بعد الشريط العلوي */
+            color: var(--text-dark);
+            font-size: 1.8em; /* تكبير حجم عنوان المقال */
+            margin-bottom: var(--spacing-unit);
+            line-height: 1.3;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            font-weight: 600; /* خط أثقل قليلاً */
+        }
+        .article-card h2 a {
+            text-decoration: none;
+            color: inherit;
+            transition: color 0.2s ease;
+        }
+        .article-card h2 a:hover {
+            color: var(--primary-color); /* تغيير لون الرابط عند التحويم */
+            text-decoration: none; /* إزالة التسطير عند التحويم لأن اللون يكفي */
+        }
+
+        .article-card p {
+            font-size: 1.05em; /* تكبير حجم خط الملخص قليلاً */
+            color: var(--text-medium);
+            flex-grow: 1;
+            margin-bottom: calc(1.5 * var(--spacing-unit));
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 4; /* يمكن زيادتها أو تقليلها حسب الرغبة */
+            -webkit-box-orient: vertical;
+        }
+
+        .article-card .meta {
+            font-size: 0.9em;
+            color: var(--text-light);
+            margin-top: var(--spacing-unit);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid var(--border-color);
+            padding-top: var(--spacing-unit);
+        }
+        .article-card .source {
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+        .article-card .date {
+            color: var(--text-light);
+        }
+
+        .article-card .read-more { /* استخدام class لزر "قراءة المزيد" */
+            display: inline-block;
+            margin-top: calc(1.5 * var(--spacing-unit));
+            color: var(--accent-color);
+            text-decoration: none;
+            font-weight: bold;
+            transition: color 0.2s ease, transform 0.2s ease;
+            text-align: left;
+            padding-right: 5px; /* مسافة بسيطة */
+        }
+        .article-card .read-more:hover {
+            color: var(--accent-hover-color);
+            text-decoration: underline;
+            transform: translateX(-3px); /* تأثير حركة بسيطة لليسار */
+        }
+
+        .loading {
+            text-align: center;
+            font-size: 1.3em; /* تكبير رسالة التحميل */
+            color: var(--text-light);
+            grid-column: 1 / -1;
+            padding: 40px 20px; /* زيادة التباعد */
+            font-weight: 600;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: calc(4 * var(--spacing-unit)); /* تباعد أكبر للفوتر */
+            padding-top: calc(2 * var(--spacing-unit));
+            border-top: 1px solid var(--border-color);
+            color: var(--text-light);
+            font-size: 0.9em;
+        }
+        footer p {
+            margin: 0; /* إزالة هامش الفقرة الافتراضي */
+        }
+
+        /* استعلامات الوسائط (Media Queries) لتحسين الاستجابة */
+        @media (max-width: 900px) {
+            .container {
+                padding: calc(2 * var(--spacing-unit));
+            }
+            h1 {
+                font-size: 2.5em;
+            }
+            .refresh-button {
+                top: 20px;
+                left: 20px;
+                padding: 10px 15px;
+                font-size: 0.9em;
+            }
+            .article-grid {
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                gap: calc(2 * var(--spacing-unit));
+            }
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: var(--spacing-unit);
+            }
+            .container {
+                padding: calc(1.5 * var(--spacing-unit));
+                margin: var(--spacing-unit) auto;
+            }
+            h1 {
+                font-size: 2em;
+                margin-bottom: var(--spacing-unit);
+            }
+            h1::after {
+                width: 60px;
+            }
+            .refresh-button {
+                position: static; /* يعود إلى موضعه الطبيعي في التدفق */
+                display: block;
+                width: 100%;
+                margin-bottom: calc(2 * var(--spacing-unit));
+                text-align: center;
+                box-shadow: none; /* إزالة الظل في وضع الهاتف */
+            }
+            .refresh-button:hover {
+                transform: none; /* إزالة تأثير الرفع في وضع الهاتف */
+            }
+            .article-grid {
+                grid-template-columns: 1fr; /* عمود واحد فقط على الشاشات الصغيرة جدًا */
+                gap: calc(1.5 * var(--spacing-unit));
+            }
+            .article-card {
+                padding: calc(1.5 * var(--spacing-unit));
+            }
+            .article-card h2 {
+                font-size: 1.5em;
+            }
+            .article-card p {
+                font-size: 1em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button class="refresh-button">تحديث الأخبار</button>
+        <h1>أحدث الأخبار من almanadger</h1>
+        <div id="articles-container" class="article-grid">
+            <p class="loading">جاري تحميل الأخبار... يرجى الانتظار.</p>
+        </div>
+    </div>
+    <footer>
+        <p>&copy; 2025 almanadger iliass. جميع الحقوق محفوظة.</p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const articlesContainer = document.getElementById('articles-container');
+            const refreshButton = document.querySelector('.refresh-button');
+
+            // دالة مساعدة لتنسيق التاريخ
+            const formatArticleDate = (dateString) => {
+                try {
+                    const publishedDate = new Date(dateString);
+                    if (isNaN(publishedDate.getTime())) {
+                        throw new Error("تاريخ غير صالح");
+                    }
+                    const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+                    return publishedDate.toLocaleDateString('ar-EG', options);
+                } catch (e) {
+                    console.warn(`تحذير: لا يمكن تنسيق التاريخ "${dateString}". الخطأ: ${e.message}`);
+                    return 'تاريخ غير متوفر';
+                }
+            };
+
+            // دالة لإنشاء بطاقة المقال
+            const createArticleCard = (article) => {
+                const articleCard = document.createElement('div');
+                articleCard.classList.add('article-card');
+
+                const formattedDate = formatArticleDate(article.published);
+
+                articleCard.innerHTML = `
+                    <h2><a href="${article.link}" target="_blank" rel="noopener noreferrer">${article.title}</a></h2>
+                    <p>${article.summary}</p>
+                    <div class="meta">
+                        <span class="source">المصدر: ${article.source}</span>
+                        <span class="date">${formattedDate}</span>
+                    </div>
+                    <a href="${article.link}" class="read-more" target="_blank" rel="noopener noreferrer">قراءة المزيد &raquo;</a>
+                `;
+                return articleCard;
+            };
+
+            // دالة لجلب وعرض المقالات
+            const fetchAndDisplayArticles = async () => {
+                articlesContainer.innerHTML = '<p class="loading">جاري تحميل الأخبار... يرجى الانتظار.</p>'; // عرض رسالة التحميل
+
+                try {
+                    const response = await fetch('articles.json?' + new Date().getTime()); // إضافة timestamp لتجنب التخزين المؤقت
+                    if (!response.ok) {
+                        throw new Error(`فشل تحميل ملف الأخبار: ${response.status} ${response.statusText}. تأكد من أن ملف articles.json موجود ويمكن الوصول إليه.`);
+                    }
+                    const articles = await response.json();
+
+                    articlesContainer.innerHTML = ''; // مسح رسالة التحميل
+
+                    if (articles.length === 0) {
+                        articlesContainer.innerHTML = '<p style="text-align: center; color: var(--text-light);">لا توجد مقالات لعرضها حاليًا.</p>';
+                        return;
+                    }
+
+                    articles.forEach(article => {
+                        articlesContainer.appendChild(createArticleCard(article));
+                    });
+
+                } catch (error) {
+                    console.error('حدث خطأ أثناء جلب الأخبار:', error);
+                    articlesContainer.innerHTML = `<p style="color: red; text-align: center;">عذرًا، حدث خطأ أثناء تحميل الأخبار: ${error.message}<br>يرجى التأكد من تشغيل ملف run_news.bat وأن ملف articles.json موجود.</p>`;
+                }
+            };
+
+            // جلب الأخبار عند تحميل الصفحة لأول مرة
+            fetchAndDisplayArticles();
+
+            // إضافة مستمع حدث لزر التحديث بدلاً من onclick المباشر في HTML
+            if (refreshButton) {
+                refreshButton.addEventListener('click', fetchAndDisplayArticles);
+            }
+
+            // يمكنك إضافة تحديث تلقائي هنا إذا أردت، مثلاً كل 5 دقائق
+            // setInterval(fetchAndDisplayArticles, 300000); // 300000 مللي ثانية = 5 دقائق
+        });
+    </script>
+</body>
+</html>
