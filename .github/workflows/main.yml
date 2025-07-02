@@ -1,0 +1,4 @@
+- name: Install dependencies # هذا هو اسم الخطوة: تثبيت المكتبات اللازمة
+          run: | # الأوامر التي ستنفذها هذه الخطوة
+            python -m pip install --upgrade pip # هذا الأمر يحدث أداة بايثون لتثبيت المكتبات
+            pip install feedparser google-generativeai # <-- هذا هو السطر المهم!
