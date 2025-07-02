@@ -1,192 +1,105 @@
-import feedparser
-import json
-from datetime import datetime, timezone, timedelta
-import time
-import sys
-import re # هذا import ضروري لدالة clean_html
+# أضف هذه الاستيرادات في بداية سكربت بايثون الخاص بك:
+import google.generativeai as genai
+import os # لتحميل مفتاح API بأمان من متغيرات البيئة
+import time # هذا مهم لتحديد معدل الاستدعاء إذا قمت بإجراء مكالمات متعددة
 
-# **مهم جدًا:** ضبط ترميز الإخراج لضمان عرض الأحرف العربية بشكل صحيح في الطرفية.
-# هذا يعالج مشكلة UnicodeEncodeError.
-sys.stdout.reconfigure(encoding='utf-8')
+# --- تهيئة Gemini API ---
+# هذا السطر يربط سكربت الخاص بك بـ Gemini API باستخدام المفتاح السري
+# الذي توفره GitHub Actions عبر متغيرات البيئة.
+genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
-# --- إعداداتك ---
-# قائمة بتغذيات RSS التي ترغب في سحب الأخبار منها.
-# يمكنك إضافة أو إزالة الروابط حسب الحاجة.
-RSS_FEEDS = [
-    "https://al3omk.com/feed",
-    "https://www.hespress.com/feed",
-    "https://assabah.ma/feed",
-    "https://alaan.ma/?feed=rss2",
-    "https://rue20.com/feed",
-    "https://www.almaghreb24.com/feed/",
-    "https://alyaoum24.com/feed",
-    "https://aljarida24.ma/feed/",
-    "https://www.alakhbar.press.ma/feed",
-    "https://www.assahifa.com/feed/",
-    "https://madar21.com/feed",
-    "https://howiyapress.com/feed/",
-    "https://banassa.info/feed/",
-    "https://almap.press/feed/",
-    "https://ar.hibapress.com/feed",
-    "https://www.almountakhab.com/sitemap-rss.rss",
-    "https://www.achkayen.com/feed",
-    "https://maroc28.ma/feed/",
-    "https://presstetouan.com/feed/",
-    "https://tangerpress.com/feed",
-    "https://tanja24.com/feed",
-    "https://ecopress.ma/feed/",
-    "https://www.tanja7.com/feed/",
-    "https://chamaly.ma/home/feed/",
-    "https://laracheinfo.com/feed",
-    "https://nichan.ma/feed/",
-    "https://akhbarona.com/feed",
-    "https://www.chouf.tv/feed",
-    "https://goud.ma/feed",
-    "https://barlamane.com/ar/feed/",
-    "https://le360.ma/ar/feed/",
-    "https://www.soltana.ma/feed",
-    "https://www.febrayer.com/feed",
-    "https://ar.bladi.net/rss.xml",
-    "https://www.rachidi.ma/feed/",
-    "https://www.medias24.com/rss/",
-    "https://www.atlasinfo.fr/feed",
-    "https://nadorcity.com/feed",
-    "https://rifpresse.com/feed/",
-    "https://www.maghrebvoices.com/rss",
-    "https://www.alquds.co.uk/feed/",
-    "https://www.alarabiya.net/.rss/arabic.xml",
-    "https://aljazeera.net/rss",
-    "https://skynewsarabia.com/rss",
-    "https://arabic.rt.com/rss/",
-    "https://sputnikarabic.com/rss.xml",
-    "https://kifache.com/feed",         
-    "https://www.alyaoum24.com/feed",       
-    "https://www.aljarida24.ma/feed/",      
-    "https://www.lakome2.com/feed",         
-    "https://www.ar.sport.le360.ma/feed",   
-    "https://www.alaraby.co.uk/rss/all",    
-    "https://www.france24.com/ar/rss",      
-    "https://www.dw.com/ar/feed/rss-6362-xml", 
-    "https://www.youm7.com/rss/main",       
-    "https://elwatannews.com/Home/Rss",     
-    "https://www.emaratalyoum.com/rss",     
-    "https://www.alittihad.ae/rss/rss",     
-    "https://www.okaz.com.sa/rss",          
-    "https://www.alarabiya.net/.rss/saudi.xml", 
-    "https://www.elkhabar.com/rss/",        
-    "https://ennaharonline.com/feed/",      
-    "https://www.turess.com/tunisia_rss",   
-    "https://www.babnet.net/rss/rss.php",   
-    "https://aljazeera.net/rss/more.xml",   
-    "https://alarabiya.net/.rss/politics.xml" 
-]
+# أضف فحصًا لمفتاح API. هذا مفيد أثناء الاختبار المحلي.
+if os.environ.get("GOOGLE_API_KEY") is None:
+    print("تحذير: متغير البيئة 'GOOGLE_API_KEY' غير موجود. قد لا تعمل وظائف Gemini API محليًا.")
+    print("للاختبار المحلي، قم بتعيينه (مثال: export GOOGLE_API_KEY='YOUR_KEY_HERE' على Linux/macOS، أو set GOOGLE_API_KEY='YOUR_KEY_HERE' على Windows CMD)")
 
-# اسم متجرك (يتم سحبه من معلوماتك المحفوظة).
-STORE_NAME = "hachimi shop"
 
-# مسار حفظ ملف JSON الذي سيتم عرضه بواسطة صفحة الويب.
-# تأكد أن هذا الملف موجود في نفس المجلد مع index.html (أو index.php).
-OUTPUT_JSON_FILE = "articles.json"
-
-def get_published_datetime(entry):
+def paraphrase_arabic_article(text_to_paraphrase, max_output_tokens=1000, temperature=0.7):
     """
-    يحاول الحصول على كائن datetime من تاريخ النشر.
-    يتعامل مع تنسيقات مختلفة لتاريخ النشر الشائعة في RSS.
+    يعيد صياغة مقال إخباري باللغة العربية باستخدام نموذج Gemini Pro.
+
+    Args:
+        text_to_paraphrase (str): النص الأصلي للمقال المراد إعادة صياغته.
+        max_output_tokens (int): الحد الأقصى لعدد التوكنات في النص المعاد صياغته.
+                                 قم بضبط هذا بناءً على الطول المتوقع للمقالات المعاد صياغتها.
+        temperature (float): يتحكم في إبداع/عشوائية الناتج.
+                             القيم الأقل (مثل 0.2-0.5) لناتج أكثر دقة/واقعية.
+                             القيم الأعلى (مثل 0.7-1.0) لناتج أكثر تنوعًا/إبداعًا.
+
+    Returns:
+        str: النص المعاد صياغته، أو رسالة خطأ إذا فشلت العملية.
     """
-    # الخيار الأول: استخدام published_parsed الذي توفره feedparser
-    if 'published_parsed' in entry and entry.published_parsed:
-        try:
-            return datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
-        except TypeError:
-            pass # قد يكون published_parsed غير مكتمل، ننتقل للخيار التالي
+    if not text_to_paraphrase or not text_to_paraphrase.strip():
+        return "خطأ: لم يتم توفير نص لإعادة الصياغة."
+    
+    # فحص حاسم: تأكد من توفر مفتاح API قبل إجراء الاستدعاء
+    if os.environ.get("GOOGLE_API_KEY") is None:
+        return "خطأ: GOOGLE_API_KEY غير مهيأ. لا يمكن استدعاء Gemini API."
 
-    # الخيار الثاني: محاولة تحليل حقل 'published' كنص
-    if 'published' in entry and entry.published:
-        published_str = entry.published.strip()
-        
-        # تنسيق ISO 8601 شائع (مثال: 2024-06-21T10:00:00Z)
-        if 'T' in published_str and ('Z' in published_str or '+' in published_str or '-' in published_str):
-            try:
-                # استبدال Z بـ +00:00 ليتوافق مع fromisoformat بشكل أفضل
-                return datetime.fromisoformat(published_str.replace('Z', '+00:00'))
-            except ValueError:
-                pass
-        
-        # تنسيق RFC 822/2822 (مثال: Fri, 21 Jun 2024 10:00:00 +0000)
-        try:
-            return datetime.strptime(published_str, "%a, %d %b %Y %H:%M:%S %z")
-        except ValueError:
-            pass
-        
-        # تنسيقات أخرى قديمة أو أقل شيوعًا (يمكن إضافة المزيد هنا إذا لزم الأمر)
-        try:
-            return datetime.strptime(published_str, "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            pass
-        try:
-            return datetime.strptime(published_str, "%Y-%m-%dT%H:%M:%S")
-        except ValueError:
-            pass
-
-    # إذا فشلت جميع المحاولات، نرجع تاريخًا قديمًا جدًا لفرزها في النهاية
-    return datetime.min.replace(tzinfo=timezone.utc)
-
-def clean_html(raw_html):
-    """يزيل وسوم HTML الأساسية من النصوص."""
-    # يمكن استخدام مكتبات مثل BeautifulSoup لتنظيف أكثر شمولاً،
-    # لكن هذا يكفي لمعظم الحالات البسيطة.
-    cleanr = re.compile('<.*?>|&nbsp;')
-    cleantext = re.sub(cleanr, '', raw_html)
-    return cleantext.strip()
-
-def fetch_and_save_news():
-    """يسحب الأخبار من تغذيات RSS ويحفظها في ملف JSON."""
-    all_articles = []
-    print(f"أهلاً بك في نظام أخبار {STORE_NAME}")
-    print(f"جاري جلب الأخبار من {len(RSS_FEEDS)} مصادر... قد يستغرق هذا بعض الوقت.")
-
-    for feed_url in RSS_FEEDS:
-        print(f"جاري جلب الأخبار من: {feed_url}")
-        try:
-            feed = feedparser.parse(feed_url)
-            # الحصول على اسم المصدر من التغذية نفسها، أو قيمة افتراضية
-            source_title = feed.feed.get('title', 'مصدر غير معروف').strip()
-            if not source_title: # في حال كان العنوان فارغاً
-                source_title = feed_url.split('//')[-1].split('/')[0] # أخذ الدومين كاسم مصدر
-
-            for entry in feed.entries:
-                title = entry.get('title', 'عنوان غير متوفر').strip()
-                link = entry.get('link', '#').strip()
-                published_dt = get_published_datetime(entry)
-                summary = entry.get('summary', 'ملخص غير متوفر').strip()
-                
-                # تنظيف الملخص باستخدام الدالة المخصصة
-                clean_summary = clean_html(summary)
-
-                article_data = {
-                    "title": title,
-                    "link": link,
-                    "published": published_dt.isoformat(), # حفظ التاريخ بتنسيق ISO 8601 لسهولة التحويل لاحقاً
-                    "summary": clean_summary,
-                    "source": source_title
-                }
-                all_articles.append(article_data)
-        except Exception as e:
-            print(f"خطأ في سحب التغذية من {feed_url}: {e}")
-            continue # الاستمرار في التغذيات الأخرى حتى لو فشلت إحداها
-
-    # فرز جميع المقالات حسب تاريخ النشر (الأحدث أولاً)
-    all_articles.sort(key=lambda x: datetime.fromisoformat(x['published']), reverse=True)
-
-    # حفظ المقالات في ملف JSON
     try:
-        with open(OUTPUT_JSON_FILE, 'w', encoding='utf-8') as f:
-            json.dump(all_articles, f, ensure_ascii=False, indent=4)
-        print(f"\nتم حفظ {len(all_articles)} مقالاً في {OUTPUT_JSON_FILE}")
-    except Exception as e:
-        print(f"خطأ في حفظ ملف JSON: {e}")
+        model = genai.GenerativeModel(
+            'gemini-pro', # 'gemini-pro' هو النموذج الأنسب للمهام النصية
+            generation_config={
+                "temperature": temperature,
+                "max_output_tokens": max_output_tokens,
+            }
+        )
 
+        # صياغة توجيه احترافي للنموذج لأداء إعادة الصياغة
+        # التوجيه المفصل والواضح يؤدي عادة إلى نتائج أفضل.
+        prompt = (
+            f"أنت خبير في التحرير الصحفي وإعادة الصياغة الإبداعية. "
+            f"مهمتك هي إعادة صياغة المقال الإخباري العربي التالي بأسلوب احترافي وجذاب، "
+            f"مع الحفاظ بدقة على المعنى الأصلي وجميع الحقائق الهامة. "
+            f"تجنب أي تكرار في الأفكار أو المفردات. استخدم مفردات غنية ومتنوعة وأسلوبًا صحفيًا موضوعيًا ومقنعًا. "
+            f"تأكد من أن النص الجديد يتدفق بسلاسة وسهل القراءة، ومناسب للنشر الفوري."
+            f"\n\nالمقال الأصلي:\n{text_to_paraphrase}"
+            f"\n\nالنسخة المعاد صياغتها:\n"
+        )
+
+        response = model.generate_content(prompt)
+
+        # فحص بنية الاستجابة للنص الذي تم إنشاؤه
+        if response and response.candidates and response.candidates[0].text:
+            paraphrased_text = response.candidates[0].text
+            return paraphrased_text.strip()
+        else:
+            # معالجة الحالات التي تكون فيها الاستجابة فارغة أو لا تحتوي على النص المتوقع
+            return f"خطأ: لم يتمكن نموذج Gemini من إعادة صياغة المقال. تفاصيل الاستجابة غير المتوقعة: {response}"
+
+    except genai.types.BlockedPromptException as e:
+        # يحدث هذا إذا تم حظر المحتوى لأسباب تتعلق بالسلامة
+        return f"خطأ: فشلت إعادة الصياغة حيث تم حظر المحتوى لأسباب تتعلق بالسلامة. التفاصيل: {e.safety_ratings}"
+    except Exception as e:
+        # التقاط الأخطاء المحتملة الأخرى (مشاكل الشبكة، تجاوز حدود الاستخدام، مفتاح API غير صالح، إلخ.)
+        return f"حدث خطأ غير متوقع أثناء استدعاء Gemini API: {e}"
+
+# --- مثال على كيفية استخدام الدالة محليًا (لأغراض الاختبار) ---
 if __name__ == "__main__":
-    fetch_and_save_news()
-    # لتحديث الأخبار تلقائيًا، يجب جدولة تشغيل هذا السكربت بانتظام
-    # (مثلاً، باستخدام Cron Job على Linux/macOS أو Task Scheduler على Windows).
+    # سيتم تشغيل هذه الكتلة فقط عندما يتم تنفيذ سكربت بايثون مباشرة.
+    # تأكد من تعيين متغير البيئة GOOGLE_API_KEY للاختبار المحلي!
+    
+    sample_article_to_paraphrase = """
+    قال الرئيس التنفيذي لشركة التكنولوجيا الفضائية الجديدة إن الإطلاق التجريبي الأخير للصاروخ كان ناجحًا بشكل باهر، وفتح آفاقًا جديدة لاستكشاف الفضاء التجاري. وأضاف أن الشركة تخطط لإرسال أول بعثة مأهولة إلى المريخ في غضون السنوات الخمس المقبلة، مؤكداً التزامهم بتحقيق هذا الهدف الطموح. وقد أثار هذا الإعلان حماسًا كبيرًا في الأوساط العلمية والتكنولوجية حول العالم.
+    """
+
+    print("النص الأصلي:")
+    print(sample_article_to_paraphrase)
+    print("\n" + "="*50 + "\n")
+
+    print("جاري إعادة الصياغة بواسطة Gemini...")
+    paraphrased_output = paraphrase_arabic_article(sample_article_to_paraphrase, max_output_tokens=700)
+    
+    print("\nالنص المعاد صياغته بواسطة Gemini:")
+    print(paraphrased_output)
+    print("\n" + "="*50 + "\n")
+
+    # التكامل المفاهيمي مع منطق جلب الأخبار الخاص بك:
+    # بعد أن تقوم دالة `fetch_and_save_news()` بملء `all_articles`:
+    # for article in all_articles:
+    #     original_summary = article.get('summary', '')
+    #     if original_summary and len(original_summary) > 50: # أعد الصياغة فقط إذا كان الملخص موجودًا وطويلاً بما يكفي
+    #         print(f"جاري إعادة صياغة الملخص لـ: {article.get('title', 'بدون عنوان')}")
+    #         paraphrased_version = paraphrase_arabic_article(original_summary, max_output_tokens=500)
+    #         article['paraphrased_summary'] = paraphrased_version # أضف حقلًا جديدًا للملخص المعاد صياغته
+    #         time.sleep(0.5) # مهم: أضف تأخيرًا بسيطًا لتجنب تجاوز حدود معدل استدعاء API
